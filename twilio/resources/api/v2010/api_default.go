@@ -635,12 +635,26 @@ func createAccountsIncomingPhoneNumbers(ctx context.Context, d *schema.ResourceD
 }
 
 func deleteAccountsIncomingPhoneNumbers(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	sid := d.Get("sid").(string)
+
+	// Check if emergency_address_sid is set and clear it before deletion
+	// Twilio requires emergency address association to be removed before deleting the phone number
+	if emergencyAddressSid, ok := d.GetOk("emergency_address_sid"); ok && emergencyAddressSid.(string) != "" {
+		updateParams := UpdateIncomingPhoneNumberParams{}
+		// Set emergency_address_sid to empty string to clear the association
+		updateParams.EmergencyAddressSid = new(string)
+		*updateParams.EmergencyAddressSid = ""
+
+		_, err := m.(*client.Config).Client.Api.UpdateIncomingPhoneNumber(sid, &updateParams)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	params := DeleteIncomingPhoneNumberParams{}
 	if err := UnmarshalSchema(&params, d); err != nil {
 		return diag.FromErr(err)
 	}
-
-	sid := d.Get("sid").(string)
 
 	err := m.(*client.Config).Client.Api.DeleteIncomingPhoneNumber(sid, &params)
 	if err != nil {
